@@ -175,6 +175,26 @@ class TestAnalyzeRoutes:
         finally:
             db.close()
 
+    def test_heatmap_route_returns_clear_error_for_failed_run(self):
+        db = TestingSessionLocal()
+        try:
+            image = create_image(db)
+            run = AnalysisRun(
+                image_id=image.id,
+                status="failed",
+                error_message="Inference pipeline not available (Torch may be missing)",
+                heatmap_path=None,
+            )
+            db.add(run)
+            db.commit()
+            db.refresh(run)
+
+            response = client.get(f"/api/v1/analyze/runs/{run.id}/heatmap")
+            assert response.status_code == 409
+            assert "Torch may be missing" in response.json()["detail"]
+        finally:
+            db.close()
+
     def test_analyze_image_runs_background_pipeline(self):
         db = TestingSessionLocal()
         try:
@@ -325,8 +345,6 @@ class TestResultsRoutes:
             assert response.json()["run_id"] == run.id
         finally:
             db.close()
-
-
 class TestConfigRoutes:
     def test_config_read_update_reset(self):
         response = client.get("/api/v1/config")

@@ -401,6 +401,30 @@ For team-shared dashboard on local network:
    python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
    ```
 
+  ## Using an existing virtualenv (e.g. .venv312 on Windows)
+
+  If you have a preconfigured virtual environment with CUDA-enabled PyTorch (for example `.venv312`), you can start the backend inside that environment using the helper batch script we added for Windows:
+
+  ```
+  cd backend
+  run_with_venv312.bat
+  ```
+
+  The helper will attempt to activate `..\.venv312` relative to the `backend` folder and then launch `uvicorn app.main:app`. Adjust the activation path inside `run_with_venv312.bat` if your venv lives elsewhere. This is the recommended way to run the backend when you need GPU-enabled PyTorch present at runtime.
+
+  ## External Inference Python (no in-process Torch required)
+
+  If you cannot or do not want to install Torch into the backend interpreter, the server can spawn an external Python process to perform inference. Set the `INFERENCE_PYTHON` environment variable to a Python executable that has PyTorch and the project dependencies installed (this can be any virtualenv or system Python).
+
+  Example (Windows PowerShell):
+
+  ```powershell
+  $env:INFERENCE_PYTHON = 'C:\path\to\python.exe'
+  python -m uvicorn app.main:app --reload
+  ```
+
+  When `INFERENCE_PYTHON` is set, the backend will run `backend/inference_worker.py` in that interpreter for each queued analysis run. The worker loads the model checkpoint (configured via `MODEL_CHECKPOINT_PATH`) and returns analysis results via STDOUT JSON. This avoids loading Torch into the main API process while letting you use a GPU-enabled interpreter.
+
 2. **Other team members connect** (replace with your IP):
    ```
    http://<your-machine-ip>:8000

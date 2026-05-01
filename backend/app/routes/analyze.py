@@ -28,11 +28,77 @@ def _run_analysis_background(run_id: int, image_id: int, model_version: str) -> 
 
         # Check pipeline availability
         from app.main import app_state
+
+        # If an in-process pipeline exists, use it. Otherwise, if an external Python
+        # interpreter is configured (INFERENCE_PYTHON), spawn a subprocess worker
+        # that runs the inference in that interpreter (must have torch installed).
         if not app_state.inference_pipeline:
-            error_msg = "Inference pipeline not available (Torch may be missing)"
-            analysis_logger.update_analysis_run(run_id, status="failed", error_message=error_msg)
-            logger.error(error_msg)
-            return
+            external_py = app_state.inference_python
+            if external_py:
+                logger.info("Using external inference python %s for run %s", external_py, run_id)
+                try:
+                    import subprocess, os
+
+                    repo_root = os.path.abspath(os.path.join(Path(__file__).parent.parent.parent))
+                    worker_path = os.path.join(repo_root, "backend", "inference_worker.py")
+                    model_checkpoint = os.getenv("MODEL_CHECKPOINT_PATH", os.path.join(repo_root, "runs", "training_data_swin", "best.pt"))
+                    model_name = os.getenv("INFERENCE_MODEL_NAME", "swin_tiny_patch4_window7_224")
+
+                    cmd = [external_py, worker_path, "--image", run.image.local_path, "--checkpoint", model_checkpoint, "--model", model_name, "--device", app_state.device or "cpu"]
+                    env = os.environ.copy()
+                    # Ensure worker can import project packages
+                    env["PYTHONPATH"] = repo_root + os.pathsep + env.get("PYTHONPATH", "")
+
+                    logger.info("Spawning worker: %s", " ".join(cmd))
+                    proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=300)
+                    out = proc.stdout.strip()
+                    err = proc.stderr.strip()
+
+                    if proc.returncode != 0:
+                        error_msg = f"External inference worker failed (rc={proc.returncode}): {err or out}"
+                        logger.error(error_msg)
+                        analysis_logger.update_analysis_run(run_id, status="failed", error_message=error_msg)
+                        return
+
+                    # Parse JSON output
+                    payload = json.loads(out)
+                    if not payload.get("ok"):
+                        error_msg = payload.get("error") or payload.get("traceback") or "Unknown worker error"
+                        analysis_logger.update_analysis_run(run_id, status="failed", error_message=error_msg)
+                        logger.error("Worker returned error: %s", error_msg)
+                        return
+
+                    results = payload.get("results", {})
+                    elapsed = 0.0
+                    # Save heatmap if available
+                    heatmap_path = None
+                    if "heatmap_image_path" in results:
+                        heatmap_path = results["heatmap_image_path"]
+
+                    analysis_logger.update_analysis_run(
+                        run_id,
+                        status="completed",
+                        stage_1_result=results.get("stages", {}).get("stage_1"),
+                        stage_2_results=results.get("stages", {}).get("stage_2"),
+                        stage_3_results=results.get("stages", {}).get("stage_3"),
+                        consensus_result={
+                            "final_confidence": results.get("final_confidence"),
+                            "final_prediction": results.get("final_prediction"),
+                        },
+                        analysis_time_seconds=elapsed,
+                        heatmap_path=heatmap_path,
+                    )
+                    logger.info("External worker completed run %s", run_id)
+                    return
+                except Exception as exc:
+                    logger.exception("Failed running external inference worker: %s", exc)
+                    analysis_logger.update_analysis_run(run_id, status="failed", error_message=str(exc))
+                    return
+            else:
+                error_msg = "Inference pipeline not available (Torch may be missing)"
+                analysis_logger.update_analysis_run(run_id, status="failed", error_message=error_msg)
+                logger.error(error_msg)
+                return
 
         # Run analysis
         logger.info("Starting background analysis for run %s, image %s", run_id, image_id)
@@ -158,6 +224,9 @@ def get_run_heatmap(run_id: int, db: Session = Depends(get_db)):
     run = analysis_logger.get_analysis_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
+    if run.status == "failed":
+        detail = run.error_message or "Analysis failed before a heatmap could be generated"
+        raise HTTPException(status_code=409, detail=detail)
     if not run.heatmap_path or not Path(run.heatmap_path).exists():
         raise HTTPException(status_code=404, detail="Heatmap not yet available")
     return FileResponse(run.heatmap_path, media_type="image/png")

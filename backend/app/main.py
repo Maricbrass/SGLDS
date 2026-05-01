@@ -20,6 +20,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _extract_state_dict(checkpoint):
+    if isinstance(checkpoint, dict):
+        for key in ("model_state", "state_dict", "model"):
+            state_dict = checkpoint.get(key)
+            if isinstance(state_dict, dict):
+                return state_dict
+    return checkpoint
+
+
 class AppState:
     """Global application state."""
 
@@ -29,6 +38,7 @@ class AppState:
         self.inference_pipeline = None
         self.torch_available = False
         self.torch_import_error = None
+        self.inference_python = None  # Path to external python interpreter for inference worker
 
 
 app_state = AppState()
@@ -56,6 +66,12 @@ async def lifespan(app: FastAPI):
     torch, torch_available, torch_error = _try_import_torch()
     app_state.torch_available = torch_available
     app_state.torch_import_error = torch_error
+
+    # External inference Python (optional). If set, backend will spawn subprocesses
+    # using this interpreter to run inference when Torch cannot be imported in-process.
+    app_state.inference_python = os.getenv("INFERENCE_PYTHON")
+    if app_state.inference_python:
+        logger.info("Configured external inference python: %s", app_state.inference_python)
 
     if torch_available:
         app_state.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -90,7 +106,7 @@ async def lifespan(app: FastAPI):
                 pretrained=False,
             )
             checkpoint = torch.load(model_path, map_location=app_state.device)
-            app_state.model.load_state_dict(checkpoint)
+            app_state.model.load_state_dict(_extract_state_dict(checkpoint))
             app_state.model = app_state.model.to(app_state.device).eval()
 
             logger.info("Model loaded successfully")

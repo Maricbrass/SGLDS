@@ -16,6 +16,37 @@
 	--card-shadow: 0 20px 40px rgba(11, 28, 49, 0.12);
 }
 
+/* Dark theme overrides */
+.theme-dark {
+	--bg-top: #03051a;
+	--bg-bottom: #061021;
+	--surface: #071226;
+	--surface-glass: rgba(10, 14, 26, 0.6);
+	--text-main: #e9f6ff;
+	--text-muted: #9bb6d2;
+	--line: rgba(255,255,255,0.06);
+	--accent: #7ad7ff;
+	--accent-strong: #4ec0ff;
+	--card-shadow: 0 20px 40px rgba(0,0,0,0.6);
+}
+
+/* Starry background for dark theme */
+.starry-bg {
+	background-image:
+		radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.9), transparent 40%),
+		radial-gradient(1px 1px at 30% 40%, rgba(255,255,255,0.75), transparent 40%),
+		radial-gradient(1px 1px at 60% 10%, rgba(255,255,255,0.6), transparent 40%),
+		radial-gradient(1px 1px at 80% 60%, rgba(255,255,255,0.85), transparent 40%),
+		linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+	background-size: cover;
+	background-repeat: no-repeat;
+}
+
+/* Subtle nebula overlay */
+.theme-dark .app-header {
+	background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+}
+
 * {
 	box-sizing: border-box;
 }

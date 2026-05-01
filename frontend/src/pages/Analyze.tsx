@@ -146,7 +146,7 @@ export default function AnalyzePage() {
         <p className="panel-subtitle">Heatmap is served from backend once a run completes.</p>
 
         <HeatmapOverlay
-          heatmapUrl={run ? `/api/v1/analyze/runs/${run.id}/heatmap` : undefined}
+          heatmapUrl={run && run.status === "completed" && run.heatmap_path ? `/api/v1/analyze/runs/${run.id}/heatmap` : undefined}
         />
 
         <h3>Recent Runs For Image</h3>

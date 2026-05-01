@@ -1,0 +1,45 @@
+{
+  "models": {
+    "swin": "swin_tiny_patch4_window7_224",
+    "vit": "vit_small_patch16_224",
+    "cnn": "resnet50"
+  },
+  "comparison": [
+    {
+      "metric": "Best AUC",
+      "swin": 0.9917586919277558,
+      "vit": 0.9899636114023176,
+      "cnn": 0.9799987907112553
+    },
+    {
+      "metric": "TPR@FPR=1e-2",
+      "swin": 1.0,
+      "vit": 0.9993368700265252,
+      "cnn": 1.0
+    },
+    {
+      "metric": "TPR@FPR=1e-3",
+      "swin": 0.9993368700265252,
+      "vit": 0.9993368700265252,
+      "cnn": 1.0
+    },
+    {
+      "metric": "TPR@FPR=1e-4",
+      "swin": 0.9990053050397878,
+      "vit": 0.9993368700265252,
+      "cnn": 1.0
+    },
+    {
+      "metric": "Best Epoch",
+      "swin": 10,
+      "vit": 5,
+      "cnn": 9
+    },
+    {
+      "metric": "Time (sec)",
+      "swin": 2133.3952910900116,
+      "vit": 1929.6705894470215,
+      "cnn": 3001.838475227356
+    }
+  ]
+}
