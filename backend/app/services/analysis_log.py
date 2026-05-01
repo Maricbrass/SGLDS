@@ -55,7 +55,7 @@ class AnalysisLogger:
             source=source,
             s3_url=s3_url,
             local_path=local_path,
-            metadata=metadata or {},
+            metadata_json=metadata or {},
             fetch_date=datetime.utcnow(),
         )
         
@@ -105,6 +105,7 @@ class AnalysisLogger:
         consensus_result: Optional[Dict] = None,
         analysis_time_seconds: Optional[float] = None,
         heatmap_url: Optional[str] = None,
+        heatmap_path: Optional[str] = None,
         error_message: Optional[str] = None,
         gpu_used: Optional[str] = None,
     ) -> AnalysisRun:
@@ -117,7 +118,8 @@ class AnalysisLogger:
             stage_*_result: Results from each stage
             consensus_result: Final consensus
             analysis_time_seconds: Total time taken
-            heatmap_url: URL/path to heatmap image
+            heatmap_url: URL to heatmap image
+            heatmap_path: Local file path to heatmap image
             error_message: Error details if failed
             gpu_used: GPU device used
             
@@ -141,6 +143,8 @@ class AnalysisLogger:
             run.analysis_time_seconds = analysis_time_seconds
         if heatmap_url:
             run.heatmap_url = heatmap_url
+        if heatmap_path:
+            run.heatmap_path = heatmap_path
         if error_message:
             run.error_message = error_message
         if gpu_used:

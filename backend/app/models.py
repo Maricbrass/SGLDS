@@ -16,7 +16,7 @@ class Image(Base):
     s3_url = Column(String(500), nullable=True)
     local_path = Column(String(500), nullable=True)
     image_size_pixels = Column(Integer, nullable=True)  # e.g., 1024 for 1024x1024
-    metadata = Column(JSON, default={})  # RA, Dec, filter, etc.
+    metadata_json = Column("metadata", JSON, default=dict)  # RA, Dec, filter, etc.
 
     # Relationships
     analysis_runs = relationship("AnalysisRun", back_populates="image", cascade="all, delete-orphan")
@@ -41,6 +41,7 @@ class AnalysisRun(Base):
     consensus_result = Column(JSON, nullable=True)  # {final_confidence, is_lens, heatmap_path}
     
     heatmap_url = Column(String(500), nullable=True)
+    heatmap_path = Column(String(500), nullable=True)  # Local file path for heatmap image
     analysis_time_seconds = Column(Float, nullable=True)
     gpu_used = Column(String(50), nullable=True)
     status = Column(String(20), default="pending")  # 'pending', 'running', 'completed', 'failed'

@@ -137,6 +137,16 @@ app.add_middleware(
 )
 
 
+# Register API routers from the routes package.
+try:
+    routes.register_routes(app)
+except Exception:
+    logger.exception("Could not register routes at startup")
+    raise
+else:
+    logger.info("API routers registered successfully")
+
+
 @app.get("/")
 async def root():
     """Root endpoint."""

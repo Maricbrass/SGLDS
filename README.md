@@ -8,6 +8,20 @@ Strong gravitational lenses are rare but scientifically important because they c
 
 The current codebase supports binary classification for `lens` versus `non_lens` and is designed around reproducible training, benchmark evaluation, and inference on Euclid-like cutouts.
 
+## Project Progress
+
+The repository now includes a working Phase 1 backend and a connected frontend dashboard.
+
+- Backend API, database models, Euclid cloud access, and multi-stage inference are implemented and validated with tests.
+- Frontend pages for dashboard, search, analyze, gallery, and settings are wired to the backend API.
+- The frontend production build passes with `npm run build`.
+
+Remaining planned work:
+
+- Authentication and role-based access control.
+- Real-time stage progress streaming.
+- Frontend test coverage and CI automation.
+
 ## Abstract
 
 This project proposes a deep learning framework for detecting strong gravitational lenses in Euclid-like imaging data using Swin Transformer architectures. Compared with standard CNNs, Swin Transformers can model longer-range spatial structure and arc-like morphology that are characteristic of lensing systems. The models are trained on Euclid-like simulated data and benchmarked against established lensing datasets, with evaluation centered on survey-relevant metrics such as ROC-AUC and true positive rate at extremely low false-positive thresholds. The goal is to assess whether hierarchical transformer models provide a scalable and accurate candidate-filtering solution for future Euclid data pipelines.
@@ -87,7 +101,7 @@ py -3.10 -m venv .venv310
 .venv310\Scripts\activate
 python -m pip install --upgrade pip
 python -m pip install torch==2.5.1+cpu torchvision==0.20.1+cpu --index-url https://download.pytorch.org/whl/cpu
-python -m pip install timm scikit-learn pandas numpy pyyaml matplotlib astropy pillow tqdm s3fs 'astroquery>=0.4.10'
+python -m pip install timm scikit-learn pandas numpy pyyaml matplotlib astropy pillow tqdm 's3fs>=2024.6.1' 'astroquery>=0.4.10'
 ```
 
 Python 3.10 has been the most stable runtime on this Windows machine. Python 3.12 and 3.14 builds previously hit `c10.dll` initialization issues.
@@ -123,6 +137,38 @@ python -m lens_detection.evaluate --config configs/swin_euclid.yaml --checkpoint
 ```bash
 python -m lens_detection.infer --config configs/swin_euclid.yaml --checkpoint runs/swin_euclid_baseline/best.pt --image data/euclid_like/images/lens_0000.png
 ```
+
+## Model Comparison Study (Swin vs ViT vs CNN)
+
+To fairly compare three model architectures on the same dataset with identical hyperparameters:
+
+```bash
+python -m lens_detection.benchmark
+```
+
+This will:
+1. Train Swin Transformer, Vision Transformer, and ResNet50 sequentially
+2. Log comprehensive metrics (AUC, TPR@FPR, convergence, training time)
+3. Generate comparison visualizations and reports
+
+Output saved to `runs/model_comparison/`:
+- `model_comparison.json` – Structured metrics
+- `model_comparison.png` – 4-panel comparison visualization
+- `COMPARISON_REPORT.md` – Detailed findings
+
+See [MODEL_COMPARISON_README.md](MODEL_COMPARISON_README.md) for full methodology, fair comparison setup details, output artifacts, and troubleshooting.
+
+### Individual Model Training
+
+Train each architecture separately with fair-comparison configs:
+
+```bash
+python -m lens_detection.train --config configs/swin_comparison.yaml
+python -m lens_detection.train --config configs/vit_comparison.yaml
+python -m lens_detection.train --config configs/cnn_comparison.yaml
+```
+
+All three use identical hyperparameters (lr=0.0001, seed=42, 10 epochs) to ensure unbiased results.
 
 ## Euclid Q1 Workflow
 

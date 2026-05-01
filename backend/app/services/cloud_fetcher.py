@@ -1,6 +1,7 @@
 """Cloud data fetcher for Euclid Q1 images (using S3 + astroquery)."""
 import os
 import json
+import time
 import logging
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
@@ -20,6 +21,10 @@ logger = logging.getLogger(__name__)
 # Euclid AWS S3 bucket
 BUCKET_NAME = "nasa-irsa-euclid-q1"
 S3_FS = s3fs.S3FileSystem(anon=True)  # Anonymous access
+
+
+class UpstreamServiceUnavailableError(RuntimeError):
+    """Raised when the upstream IRSA service is temporarily unavailable."""
 
 
 class EuclidCloudFetcher:
@@ -72,7 +77,11 @@ class EuclidCloudFetcher:
             img_collection = "euclid_DpdMerBksMosaic"
             
             logger.info(f"Querying IRSA for {img_collection} near {coord}")
-            img_tbl = Irsa.query_sia(pos=(coord, search_radius), collection=img_collection)
+            img_tbl = self._query_sia_with_retries(
+                coord=coord,
+                search_radius=search_radius,
+                img_collection=img_collection,
+            )
             logger.info(f"Found {len(img_tbl)} images")
 
             # Filter to Euclid science images only
@@ -107,6 +116,68 @@ class EuclidCloudFetcher:
             logger.error(f"Error searching Euclid images: {e}")
             raise
 
+    def _query_sia_with_retries(
+        self,
+        coord: SkyCoord,
+        search_radius: u.Quantity,
+        img_collection: str,
+    ):
+        """Run IRSA SIA query with retry/backoff for transient upstream failures."""
+        max_attempts = int(os.getenv("EUCLID_IRSA_MAX_ATTEMPTS", "3"))
+        base_delay_sec = float(os.getenv("EUCLID_IRSA_RETRY_BASE_DELAY_SEC", "2.0"))
+
+        last_error: Optional[Exception] = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return Irsa.query_sia(pos=(coord, search_radius), collection=img_collection)
+            except Exception as exc:  # pragma: no cover - third-party network failure path
+                last_error = exc
+                msg = str(exc).lower()
+                transient_markers = (
+                    "unable to access the capabilities endpoint",
+                    "connection failed",
+                    "timed out",
+                    "service unavailable",
+                    "temporary",
+                    "503",
+                    "dns",
+                )
+                is_transient = any(marker in msg for marker in transient_markers)
+                if attempt < max_attempts and is_transient:
+                    delay = base_delay_sec * (2 ** (attempt - 1))
+                    logger.warning(
+                        "IRSA query attempt %d/%d failed (%s). Retrying in %.1fs",
+                        attempt,
+                        max_attempts,
+                        exc,
+                        delay,
+                    )
+                    time.sleep(delay)
+                    continue
+                break
+
+        if last_error is None:
+            raise RuntimeError("IRSA query failed with an unknown error")
+
+        msg = str(last_error).lower()
+        if any(
+            marker in msg
+            for marker in (
+                "unable to access the capabilities endpoint",
+                "connection failed",
+                "timed out",
+                "service unavailable",
+                "temporary",
+                "503",
+                "dns",
+            )
+        ):
+            raise UpstreamServiceUnavailableError(
+                "IRSA service is temporarily unavailable. Please retry in a few moments."
+            ) from last_error
+
+        raise last_error
+
     def download_image_cutout(
         self,
         s3_url: str,
@@ -135,16 +206,38 @@ class EuclidCloudFetcher:
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             logger.info(f"Downloading cutout from {s3_url}")
+
+            # Tune remote reads for cloud-hosted FITS subsetting.
+            # These settings follow Astropy/fsspec guidance for reducing total transfer and latency.
+            fsspec_kwargs = {
+                "anon": True,
+                "block_size": 1_000_000,
+                "cache_type": "bytes",
+            }
             
             # Open FITS file from S3 with lazy loading
-            with fits.open(s3_url, fsspec_kwargs={"anon": True}) as hdul:
-                hdu = hdul[0]
+            with fits.open(
+                s3_url,
+                use_fsspec=True,
+                lazy_load_hdus=True,
+                fsspec_kwargs=fsspec_kwargs,
+            ) as hdul:
+                # Prefer the first image-like HDU that has array data.
+                hdu = next((h for h in hdul if getattr(h, "data", None) is not None), hdul[0])
+                if getattr(hdu, "data", None) is None:
+                    raise ValueError("No image data found in FITS file")
                 
                 # Get mosaic center if target not specified
                 if target_ra is None or target_dec is None:
                     # Use WCS center
                     wcs = WCS(hdu.header)
-                    nx, ny = wcs.pixel_shape
+                    if wcs.pixel_shape is not None:
+                        nx, ny = wcs.pixel_shape
+                    else:
+                        nx = int(hdu.header.get("NAXIS1", 0))
+                        ny = int(hdu.header.get("NAXIS2", 0))
+                    if nx <= 0 or ny <= 0:
+                        raise ValueError("Could not determine image dimensions from FITS header")
                     target_ra, target_dec = wcs.pixel_to_world_values(nx / 2, ny / 2)
                     target_ra = float(target_ra)
                     target_dec = float(target_dec)
@@ -152,9 +245,10 @@ class EuclidCloudFetcher:
                 coord = SkyCoord(ra=target_ra * u.deg, dec=target_dec * u.deg)
                 cutout_size = cutout_size_arcmin * u.arcmin
                 
-                # Extract cutout using WCS
+                # Extract cutout using WCS.
+                # Crucial for performance: pass hdu.section (lazy remote slicing), not hdu.data.
                 cutout = Cutout2D(
-                    hdu.data,
+                    hdu.section,
                     position=coord,
                     size=cutout_size,
                     wcs=WCS(hdu.header),

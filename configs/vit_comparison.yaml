@@ -1,0 +1,26 @@
+# Comparative training config: Vision Transformer (ViT)
+# Used in model comparison study (Swin vs ViT vs CNN on lens detection task)
+# Note: Same hyperparameters as swin_comparison.yaml for fair evaluation
+
+data:
+  root_dir: Training_data
+  train_csv: data/training_data_dataset/train.csv
+  val_csv: data/training_data_dataset/val.csv
+  test_csv: data/training_data_dataset/test.csv
+  image_size: 224
+  batch_size: 16
+  num_workers: 0
+
+model:
+  name: vit_small_patch16_224
+  num_classes: 2
+  pretrained: true  # Use pretrained weights for fair comparison
+
+train:
+  epochs: 10
+  lr: 0.0001
+  weight_decay: 0.0001
+  amp: true
+  seed: 42
+  output_dir: runs/comparison_vit_small
+  positive_class: 1

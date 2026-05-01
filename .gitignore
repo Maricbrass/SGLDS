@@ -133,3 +133,4 @@ paper.bib
 runs/**/best.pt 
 Training_data/
 docs/
+frontend/node_modules/
