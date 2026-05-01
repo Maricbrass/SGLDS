@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: sglds_postgres
+    environment:
+      POSTGRES_USER: sglds_user
+      POSTGRES_PASSWORD: sglds_password
+      POSTGRES_DB: sglds_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sglds_user -d sglds_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sglds_network
+
+  # Redis (optional, for Phase 2 caching)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: sglds_redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - sglds_network
+
+volumes:
+  postgres_data:
+  # redis_data:
+
+networks:
+  sglds_network:
+    driver: bridge

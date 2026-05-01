@@ -132,3 +132,4 @@ paper.bib
 # Model checkpoints 
 runs/**/best.pt 
 Training_data/
+docs/
