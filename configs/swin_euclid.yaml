@@ -10,7 +10,7 @@ data:
 model:
   name: swin_tiny_patch4_window7_224
   num_classes: 2
-  pretrained: true
+  pretrained: false
 
 train:
   epochs: 10

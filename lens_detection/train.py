@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import time
 from pathlib import Path
 
 import numpy as np
@@ -78,7 +79,13 @@ def main():
     scaler = amp.GradScaler(enabled=amp_enabled)
 
     best_auc = -1.0
+    best_epoch = -1
     best_path = out_dir / "best.pt"
+    best_val_metrics = {}
+    
+    # Track epoch history for comprehensive logging
+    epoch_history = []
+    start_time = time.time()
 
     for epoch in range(cfg.train.epochs):
         model.train()
@@ -105,8 +112,21 @@ def main():
         train_loss = running_loss / max(len(train_loader.dataset), 1)
         val_metrics = evaluate(model, val_loader, device, pos_label=cfg.train.positive_class)
 
+        # Record epoch metrics
+        epoch_record = {
+            "epoch": epoch + 1,
+            "train_loss": float(train_loss),
+            "val_auc": float(val_metrics["roc_auc"]),
+            "val_tpr_at_fpr_1e-2": float(val_metrics["tpr_at_fpr_1e-2"]),
+            "val_tpr_at_fpr_1e-3": float(val_metrics["tpr_at_fpr_1e-3"]),
+            "val_tpr_at_fpr_1e-4": float(val_metrics["tpr_at_fpr_1e-4"]),
+        }
+        epoch_history.append(epoch_record)
+
         if val_metrics["roc_auc"] > best_auc:
             best_auc = val_metrics["roc_auc"]
+            best_epoch = epoch + 1
+            best_val_metrics = val_metrics.copy()
             torch.save({"model_state": model.state_dict(), "config": args.config}, best_path)
 
         print(
@@ -115,10 +135,40 @@ def main():
             f"tpr@1e-3={val_metrics['tpr_at_fpr_1e-3']:.5f}"
         )
 
+    total_time = time.time() - start_time
+
+    # Save comprehensive metrics
+    final_metrics = {
+        "best_epoch": best_epoch,
+        "best_val_auc": float(best_auc),
+        "best_val_tpr_at_fpr_1e-2": float(best_val_metrics.get("tpr_at_fpr_1e-2", 0.0)),
+        "best_val_tpr_at_fpr_1e-3": float(best_val_metrics.get("tpr_at_fpr_1e-3", 0.0)),
+        "best_val_tpr_at_fpr_1e-4": float(best_val_metrics.get("tpr_at_fpr_1e-4", 0.0)),
+        "total_epochs": cfg.train.epochs,
+        "total_training_time_seconds": float(total_time),
+        "device": str(device),
+        "amp_enabled": amp_enabled,
+        "config": {
+            "model_name": cfg.model.name,
+            "pretrained": cfg.model.pretrained,
+            "learning_rate": cfg.train.lr,
+            "weight_decay": cfg.train.weight_decay,
+            "batch_size": cfg.data.batch_size,
+            "image_size": cfg.data.image_size,
+            "seed": cfg.train.seed,
+        },
+        "dataset": {
+            "train_samples": len(train_loader.dataset),
+            "val_samples": len(val_loader.dataset),
+        },
+        "epoch_history": epoch_history,
+    }
+
     with open(out_dir / "final_metrics.json", "w", encoding="utf-8") as f:
-        json.dump({"best_val_auc": best_auc}, f, indent=2)
+        json.dump(final_metrics, f, indent=2)
 
     print(f"Saved best checkpoint: {best_path}")
+    print(f"Training completed in {total_time/60:.2f} minutes")
 
 
 if __name__ == "__main__":

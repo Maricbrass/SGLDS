@@ -1,34 +1,68 @@
-# Detection of Strong Gravitational Lenses in Euclid Images
+# Detection of Strong Gravitational Lenses in Euclid Space Telescope Images using Swin Transformer Networks
 
-Research pipeline for strong lens detection using Swin Transformer networks, with baseline comparisons to CNN and ViT models.
+This repository implements a research pipeline for automatic strong gravitational lens detection in Euclid-like imaging data. The main focus is hierarchical vision transformers, especially Swin Transformer networks, with comparative baselines from CNN and vanilla Vision Transformer models.
 
-## Project Focus
+## Research Summary
 
-- Binary classification: `lens` vs `non_lens`
-- Survey-relevant evaluation: ROC-AUC and TPR at very low FPR
-- Architectures:
-    - `swin_tiny_patch4_window7_224`
-    - `vit_base_patch16_224`
-    - `resnet50`
+Strong gravitational lenses are rare but scientifically important because they constrain dark matter distribution, galaxy evolution, and cosmological parameters. Euclid-scale surveys will produce imaging volumes that are too large for manual inspection, so this project explores an automated detector that can work at survey scale and remain effective at very low false-positive rates.
 
-## Current Data Flow
+The current codebase supports binary classification for `lens` versus `non_lens` and is designed around reproducible training, benchmark evaluation, and inference on Euclid-like cutouts.
 
-1. Input image + label lists (`train.csv`, `val.csv`, `test.csv`) are read by `lens_detection/data.py`.
-2. Images (`png/jpg/npy/fits`) are normalized and transformed.
-3. Model is built via `lens_detection/models.py` using `timm`.
-4. Training loop in `lens_detection/train.py` optimizes cross-entropy.
-5. Evaluation in `lens_detection/evaluate.py` reports:
-     - ROC-AUC
-     - TPR@FPR=1e-2
-     - TPR@FPR=1e-3
-     - TPR@FPR=1e-4
-6. Inference on a single image is available in `lens_detection/infer.py`.
+## Abstract
+
+This project proposes a deep learning framework for detecting strong gravitational lenses in Euclid-like imaging data using Swin Transformer architectures. Compared with standard CNNs, Swin Transformers can model longer-range spatial structure and arc-like morphology that are characteristic of lensing systems. The models are trained on Euclid-like simulated data and benchmarked against established lensing datasets, with evaluation centered on survey-relevant metrics such as ROC-AUC and true positive rate at extremely low false-positive thresholds. The goal is to assess whether hierarchical transformer models provide a scalable and accurate candidate-filtering solution for future Euclid data pipelines.
+
+## Motivation
+
+The problem is driven by the size and scientific value of upcoming Euclid surveys. Strong lenses are uncommon, but each confirmed system supports studies in dark matter, galaxy structure, and cosmology. Automated detection is therefore essential, and transformer-based vision models are a timely direction to investigate for this kind of astrophysical image analysis.
+
+## Objectives
+
+- Study Euclid imaging characteristics and strong-lens morphology.
+- Train and validate CNN, Vision Transformer, and Swin Transformer models.
+- Benchmark results using standard astronomical datasets.
+- Analyze performance at low false-positive operating points.
+- Assess feasibility for integration into survey-scale pipelines.
+
+## Methodology
+
+1. Review Euclid mission imaging properties and strong-lens literature.
+2. Prepare Euclid-like and Bologna Lens Challenge datasets.
+3. Apply preprocessing and augmentation to image cutouts.
+4. Train CNN, ViT, and Swin Transformer baselines.
+5. Tune hyperparameters and compare validation behavior.
+6. Evaluate using ROC-AUC, TPR@FPR, and inference-time usability.
+
+## Project Scope
+
+The repository currently covers the model-development loop:
+
+- Dataset loading from CSV split files.
+- Image normalization for `png`, `jpg`, `npy`, and `fits` inputs.
+- Model selection through configurable `timm` backbones.
+- Training with cross-entropy optimization.
+- Evaluation with survey-relevant ranking metrics.
+- Single-image inference from saved checkpoints.
+
+## Evaluation Metrics
+
+The main reported metrics are:
+
+- ROC-AUC.
+- TPR at FPR = 1e-2.
+- TPR at FPR = 1e-3.
+- TPR at FPR = 1e-4.
+
+These metrics matter because Euclid follow-up pipelines care more about recovering true lenses under strict false-positive budgets than about average accuracy alone.
 
 ## Directory Layout
 
 ```
 configs/
     swin_euclid.yaml
+    euclid_q1_finetune.yaml
+    euclid_q1_rtx4050.yaml
+    smoke_cpu.yaml
 lens_detection/
     config.py
     data.py
@@ -56,153 +90,142 @@ python -m pip install torch==2.5.1+cpu torchvision==0.20.1+cpu --index-url https
 python -m pip install timm scikit-learn pandas numpy pyyaml matplotlib astropy pillow tqdm s3fs 'astroquery>=0.4.10'
 ```
 
-For this Windows machine, Python 3.10 with the CPU wheels above was the stable runtime. Python 3.12/3.14 builds hit `c10.dll` initialization issues.
+Python 3.10 has been the most stable runtime on this Windows machine. Python 3.12 and 3.14 builds previously hit `c10.dll` initialization issues.
 
-## Quick Start (Runnable End-to-End)
+## Quick Start
 
-1. Generate a local dummy dataset:
+1. Generate a local dummy dataset.
 
 ```bash
 python scripts/make_dummy_dataset.py
 ```
 
-2. Train Swin baseline:
+2. Train the Swin baseline.
 
 ```bash
 python -m lens_detection.train --config configs/swin_euclid.yaml
 ```
 
-Optional smoke run (fast CPU sanity check):
+Optional smoke run for a fast CPU sanity check:
 
 ```bash
 python -m lens_detection.train --config configs/smoke_cpu.yaml
 ```
 
-3. Evaluate best checkpoint:
+3. Evaluate the best checkpoint.
 
 ```bash
 python -m lens_detection.evaluate --config configs/swin_euclid.yaml --checkpoint runs/swin_euclid_baseline/best.pt --split test
 ```
 
-4. Inference on one image:
+4. Run inference on one image.
 
 ```bash
 python -m lens_detection.infer --config configs/swin_euclid.yaml --checkpoint runs/swin_euclid_baseline/best.pt --image data/euclid_like/images/lens_0000.png
 ```
 
-## Adapting to Euclid / Bologna Data
+## Euclid Q1 Workflow
 
-- Keep CSV schema as:
-    - `image_path,label`
-- Place images under `data/euclid_like/images`
-- Update paths and training settings in `configs/swin_euclid.yaml`
-
-## Fetch Euclid Q1 Data From Cloud
-
-You can reproduce the Euclid Q1 cloud-access workflow (S3 browse, MER cutouts, MER object ID, associated spectrum) with:
+The repository also includes a reproducible workflow for fetching Euclid Q1 cutouts and associated metadata.
 
 ```bash
 python scripts/fetch_euclid_q1_data.py --target-name "TYC 4429-1677-1" --out-dir data/euclid_q1
 ```
 
-Key outputs:
+Typical outputs include:
 
 - `data/euclid_q1/cutouts_manifest.csv`
 - `data/euclid_q1/cutouts/*.fits` and `data/euclid_q1/cutouts/*.png`
-- `data/euclid_q1/spectra/*_spectrum.ecsv` (if spectrum exists)
+- `data/euclid_q1/spectra/*_spectrum.ecsv` when a spectrum exists
 - `data/euclid_q1/summary.json`
 
-If a target has no associated spectrum in Q1, the script still saves cutouts and summary metadata.
-
-You can run inference on a retrieved cutout image directly:
+You can run inference directly on a retrieved cutout:
 
 ```bash
 python -m lens_detection.infer --config configs/swin_euclid.yaml --checkpoint runs/swin_euclid_baseline/best.pt --image data/euclid_q1/cutouts/VIS_cutout.png
 ```
 
-## Build Labeled Euclid Dataset and Train
+## Building A Labeled Dataset
 
-1. Create or edit labels file at `data/euclid_q1/labels.csv`:
+1. Create or edit `data/euclid_q1/labels.csv`.
 
 ```csv
 image_path,label
 NISP_H_cutout.png,1
 ```
 
-Use `label=1` for lens and `label=0` for non-lens. Add more rows as you fetch more targets.
+Use `1` for lens and `0` for non-lens.
 
-2. Build stratified train/val/test CSVs for the training pipeline:
+2. Build train/validation/test CSVs.
 
 ```bash
 python scripts/build_euclid_lens_dataset.py --annotations data/euclid_q1/labels.csv --source-dir data/euclid_q1/cutouts --out-dir data/euclid_q1_dataset --copy-images
 ```
 
-If you only have one class while testing the pipeline, add `--allow-single-class` (dry run only). For actual training, keep both classes (0 and 1) in train/val/test.
-
-3. Train on your labeled Euclid dataset:
+3. Fine-tune on the labeled Euclid dataset.
 
 ```bash
 python -m lens_detection.train --config configs/euclid_q1_finetune.yaml
 ```
 
-4. Evaluate checkpoint:
+4. Evaluate the checkpoint.
 
 ```bash
 python -m lens_detection.evaluate --config configs/euclid_q1_finetune.yaml --checkpoint runs/euclid_q1_finetune/best.pt --split test
 ```
 
-Note: meaningful lens detection requires both classes in labels (0 and 1) and enough examples per class.
+## Recommended Labeling Workflow
 
-## Fix Label Bottleneck (Recommended Workflow)
-
-1. Fetch cutouts for many targets into a labeling queue:
+1. Generate a target grid and fetch many cutouts.
 
 ```bash
 python scripts/generate_euclid_targets_grid.py --ra-deg 273.1173023 --dec-deg 68.20761349 --side-arcmin 12 --step-arcmin 1.5 --out-csv data/euclid_q1/targets.csv
 python scripts/fetch_euclid_targets_batch.py --targets-csv data/euclid_q1/targets.csv --out-dir data/euclid_q1 --skip-existing
 ```
 
-This generates:
-
-- `data/euclid_q1/label_queue.csv`
-- `data/euclid_q1/cutouts/*.png` (for fast manual labeling)
-- `data/euclid_q1/cutouts_fits/*.fits`
-
-2. Label images quickly in CLI (`1` lens, `0` non_lens, `s` skip, `q` quit):
+2. Label cutouts in the CLI.
 
 ```bash
 python scripts/label_cutouts_cli.py --images-dir data/euclid_q1/cutouts --labels-csv data/euclid_q1/labels.csv --queue-csv data/euclid_q1/label_queue.csv --show-image
 ```
 
-3. Build strict train/val/test splits (builder enforces both classes):
-
-```bash
-python scripts/build_euclid_lens_dataset.py --annotations data/euclid_q1/labels.csv --source-dir data/euclid_q1/cutouts --out-dir data/euclid_q1_dataset --copy-images
-```
-
-4. Train lens detector:
+3. Rebuild the dataset and retrain with the GPU config when enough labels are available.
 
 ```bash
 python -m lens_detection.train --config configs/euclid_q1_rtx4050.yaml
 ```
 
-5. Evaluate:
+## Training On Folder-Labeled Data
+
+If your new labels are organized as class folders under `Training_data/0` and `Training_data/1`, build the split CSVs and train with the dedicated config:
 
 ```bash
-python -m lens_detection.evaluate --config configs/euclid_q1_rtx4050.yaml --checkpoint runs/euclid_q1_rtx4050/best.pt --split test
+python scripts/build_folder_labeled_dataset.py --source-dir Training_data --out-dir data/training_data_dataset
+python -m lens_detection.train --config configs/training_data.yaml
 ```
 
-For your RTX 4050, keep `amp: true` and use the GPU config above. The training loop enables cuDNN benchmark mode, TF32 matmul paths, and AMP automatically when CUDA is available.
+The generated splits are stored in `data/training_data_dataset/`, while the images remain in `Training_data/`.
 
-## Repository Scope
+## Hardware And Software Requirements
 
-The repository now targets the lens detection pipeline only:
+- NVIDIA GPU such as RTX 3060, T4, or equivalent.
+- At least 16 GB RAM.
+- Python with PyTorch, NumPy, OpenCV, Matplotlib, and CUDA support for GPU runs.
 
-- `lens_detection/` for model code and training/evaluation/inference entrypoints
-- `configs/` for experiment configs
-- `scripts/` for utility data generation
+## Innovativeness
 
-Legacy simulation code and related legacy docs/tests were removed from active use.
+The project explores hierarchical transformer models for astronomical image classification, which is still an emerging area for Euclid-scale data. The emphasis on low false-positive performance and survey compatibility makes the work more relevant to real-world candidate filtering than ordinary image-classification benchmarks.
+
+## Societal Relevance
+
+The project contributes to space-science infrastructure by improving automated analysis of large astronomical datasets. Better gravitational-lens detection supports cosmology, dark matter research, and large-scale structure studies.
+
+## Paper
+
+The research draft is tracked in [paper.md](paper.md).
 
 
 
+cd /d c:\Users\Maric\Desktop\asglds\SGLDS && .venv310\Scripts\python -m lens_detection.train --config configs/training_data.yaml
+
+cd /d c:\Users\Maric\Desktop\asglds\SGLDS && .venv310\Scripts\python scripts\build_folder_labeled_dataset.py --source-dir Training_data --out-dir data/training_data_dataset
