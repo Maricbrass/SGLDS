@@ -46,6 +46,14 @@ app_state = AppState()
 
 def _try_import_torch():
     """Import torch lazily so the API can boot even if Torch DLLs fail."""
+    import sys
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.kernel32.SetErrorMode(0x0001 | 0x0002 | 0x8000)
+        except Exception:
+            pass
+
     try:
         import torch
 

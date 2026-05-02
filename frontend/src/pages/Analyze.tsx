@@ -17,6 +17,7 @@ export default function AnalyzePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [force, setForce] = useState(false);
 
   const canPoll = useMemo(() => {
     if (!run) {
@@ -48,7 +49,7 @@ export default function AnalyzePage() {
     setLoading(true);
 
     try {
-      const startResponse = await startAnalysis(numericImageId);
+      const startResponse = await startAnalysis(numericImageId, force);
       setRunId(startResponse.run_id);
       setMessage(startResponse.cached ? "Used cached analysis" : "Analysis queued");
       const currentRun = await refreshRun(startResponse.run_id);
@@ -104,6 +105,18 @@ export default function AnalyzePage() {
             <span>Image ID</span>
             <input value={imageId} onChange={(e) => setImageId(e.target.value)} placeholder="123" />
           </label>
+
+          <div className="button-row" style={{ marginBottom: "0.5rem" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", color: "var(--text-muted)", fontSize: "0.9rem" }}>
+              <input 
+                type="checkbox" 
+                checked={force} 
+                onChange={(e) => setForce(e.target.checked)} 
+                style={{ width: "auto" }}
+              />
+              Force Re-analysis (Bypass Cache)
+            </label>
+          </div>
 
           <div className="button-row">
             <button className="primary-btn" type="button" onClick={onStart} disabled={loading}>

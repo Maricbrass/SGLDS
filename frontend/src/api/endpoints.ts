@@ -41,8 +41,10 @@ export async function listCachedImages(limit = 50) {
   return response.data;
 }
 
-export async function startAnalysis(imageId: number) {
-  const response = await api.post<AnalyzeStartResponse>(`/analyze/image/${imageId}`);
+export async function startAnalysis(imageId: number, force = false) {
+  const response = await api.post<AnalyzeStartResponse>(`/analyze/image/${imageId}`, null, {
+    params: { force },
+  });
   return response.data;
 }
 
@@ -82,6 +84,16 @@ export async function getTrainingHistory(limit = 10) {
 
 export async function getConfig() {
   const response = await api.get<ConfigResponse>("/config");
+  return response.data;
+}
+
+export async function getTrainingRunMetrics(runId: number) {
+  const response = await api.get(`/training/${runId}/metrics`);
+  return response.data;
+}
+
+export async function getEvaluation(runId: number) {
+  const response = await api.get(`/evaluation/${runId}`);
   return response.data;
 }
 

@@ -6,14 +6,18 @@ import DashboardPage from "./pages/Dashboard";
 import GalleryPage from "./pages/Gallery";
 import SearchPage from "./pages/Search";
 import SettingsPage from "./pages/Settings";
+import TrainingPage from "./pages/Training";
+import EvaluationPage from "./pages/Evaluation";
 import "./styles.css";
 
 function App() {
   const [dark, setDark] = useState<boolean>(() => {
     try {
-      return localStorage.getItem("sglds:theme") === "dark";
+      const saved = localStorage.getItem("sglds:theme");
+      if (saved !== null) return saved === "dark";
+      return true;
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -51,6 +55,8 @@ function App() {
           <NavLink to="/search" className={({ isActive }) => (isActive ? "active" : "")}>Search</NavLink>
           <NavLink to="/analyze" className={({ isActive }) => (isActive ? "active" : "")}>Analyze</NavLink>
           <NavLink to="/gallery" className={({ isActive }) => (isActive ? "active" : "")}>Gallery</NavLink>
+          <NavLink to="/training" className={({ isActive }) => (isActive ? "active" : "")}>Training</NavLink>
+          <NavLink to="/evaluation" className={({ isActive }) => (isActive ? "active" : "")}>Evaluation</NavLink>
           <NavLink to="/settings" className={({ isActive }) => (isActive ? "active" : "")}>Settings</NavLink>
         </nav>
 
@@ -60,6 +66,8 @@ function App() {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/analyze" element={<AnalyzePage />} />
             <Route path="/gallery" element={<GalleryPage />} />
+            <Route path="/training" element={<TrainingPage />} />
+            <Route path="/evaluation" element={<EvaluationPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </main>
